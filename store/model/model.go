@@ -1,4 +1,9 @@
-package models
+package model
+
+type Food struct {
+	id   int
+	name string
+}
 
 type Packet struct {
 	id          int
