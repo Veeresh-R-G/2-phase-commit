@@ -9,6 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type BookAgentRequest struct {
+	Order_id int `json:"order_id"`
+}
+
 func ReserveAgent() (*model.Agent, error) {
 	// Reserve an agent for delivery
 	db, err := database.InitialiseDb()
@@ -34,7 +38,7 @@ func ReserveAgent() (*model.Agent, error) {
 
 	if err != nil {
 		txn.Rollback()
-		return nil, errors.New("No agents available")
+		return nil, errors.New("no agents available")
 	}
 
 	_, err = txn.Exec(`UPDATE agents 
@@ -44,17 +48,17 @@ func ReserveAgent() (*model.Agent, error) {
 
 	if err != nil {
 		txn.Rollback()
-		return nil, errors.New("Error Reserving Agent")
+		return nil, errors.New("error reserving agent")
 	}
 
 	return &agent, nil
 }
 
-func BookAgent() (*model.Agent, error) {
+func BookAgent(order_id int) (*model.Agent, error) {
 
 	db, err := database.InitialiseDb()
 	if err != nil {
-		return nil, errors.New("Error connecting to database")
+		return nil, errors.New("error connecting to database")
 	}
 
 	txn, _ := db.Begin()
@@ -66,8 +70,29 @@ func BookAgent() (*model.Agent, error) {
 
 	if row.Err() != nil {
 		txn.Rollback()
-		return nil, errors.New("No agents is free, all are busy delivering the package")
+		return nil, errors.New("no agents is free, all are busy delivering the package")
 	}
+
+	var agent model.Agent
+	err = row.Scan(&agent.Id, &agent.Is_reserved, &agent.Order_id)
+	if err != nil {
+		txn.Rollback()
+		return nil, errors.New("error scanning agent")
+	}
+
+	//Booking the agent for a particular order
+	_, err = txn.Exec(`UPDATE agents
+	SET 
+	is_reserved = false,
+	order_id = ?
+	WHERE id = ?`, order_id, agent.Id)
+
+	if err != nil {
+		txn.Rollback()
+		return nil, errors.New("error updating agent")
+	}
+
+	return &agent, nil
 }
 
 func main() {
@@ -87,14 +112,21 @@ func main() {
 
 	r.POST("/delivery/agent/book", func(ctx *gin.Context) {
 
-		agent, err := BookAgent(Order.ID)
+		var reqBody BookAgentRequest
+
+		if err := ctx.BindJSON(&reqBody); err != nil {
+			ctx.JSON(400, err)
+			return
+		}
+
+		agent, err := BookAgent(reqBody.Order_id)
 
 		if err != nil {
 			ctx.JSON(429, err)
 			return
 		}
 
-		ctx.JSON(200, "")
+		ctx.JSON(200, gin.H{"Booked Agent with agent_id": agent.Id, "Booked for Order-id": reqBody.Order_id})
 	})
 
 	log.Printf("Starting delivery service on port 8082")
