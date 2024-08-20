@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"errors"
 	"log"
 
@@ -27,8 +28,9 @@ func ReserveFood(food_id int) (*model.Packet, error) {
 
 	txn, _ := db.Begin()
 
+	//Getting the first food packet that is available
 	row := txn.QueryRow(`SELECT * id, food_id, is_reserved, order_id 
-	FROM packets
+	FROM packet
 	WHERE
 		is_reserved is false and food_id = ? and order_id = -1
 	LIMIT 1
@@ -45,12 +47,61 @@ func ReserveFood(food_id int) (*model.Packet, error) {
 		return nil, errors.New("no food packet available")
 	}
 
+	_, err = txn.Exec(`UPDATE packet 
+	SET is_reserved = true
+	WHERE id = ?
+	`, food_packet.Id)
+
+	if err != nil {
+		txn.Rollback()
+		return nil, errors.New("error in updating packet")
+	}
+
+	err = txn.Commit()
+	if err != nil {
+		return nil, errors.New("error in committing updating transaction")
+	}
+
 	return &food_packet, nil
 }
 
 func BookFood(order_id, food_id int) (*model.Packet, error) {
 
+	db, err := database.InitialiseDb()
+	if err != nil {
+		return nil, errors.New("error in connecting to database")
+	}
+
+	txn, _ := db.Begin()
+
 	var packet model.Packet
+	row := txn.QueryRow(`
+	SELECT * from packet
+	WHERE is_reserved is true and order_id = -1 and food_id = ?
+	LIMIT 1
+	FOR UPDATE`, food_id)
+
+	if row.Err() != nil {
+		return nil, errors.New("food packets not available")
+	}
+
+	err = row.Scan(&packet.Id, &packet.Food_id, &packet.Is_reserved, &packet.Order_id)
+	if err != nil && err == sql.ErrNoRows {
+		return nil, errors.New("food packets not available")
+
+	}
+
+	_, err = txn.Exec(`
+	UPDATE packet
+	SET
+	is_reserved = false, order_id = ? 
+	WHERE 
+	id = ?`, order_id, packet.Id)
+
+	if err != nil {
+		txn.Rollback()
+		return nil, errors.New("error in updating packet")
+	}
 
 	return &packet, nil
 }
