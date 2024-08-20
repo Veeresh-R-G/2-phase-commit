@@ -1,13 +1,13 @@
 package model
 
 type Food struct {
-	id   int
-	name string
+	Id   int
+	Name string
 }
 
 type Packet struct {
-	id          int
-	food_id     int
-	is_reserved bool
-	order_id    int
+	Id          int
+	Food_id     int
+	Is_reserved bool
+	Order_id    int
 }
