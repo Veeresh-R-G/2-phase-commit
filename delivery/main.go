@@ -129,7 +129,7 @@ func main() {
 		ctx.JSON(200, gin.H{"Booked Agent with agent_id": agent.Id, "Booked for Order-id": reqBody.Order_id})
 	})
 
-	log.Printf("Starting delivery service on port 8082")
+	log.Printf("Delivery service on port 8082")
 	r.Run(":8082")
 
 }

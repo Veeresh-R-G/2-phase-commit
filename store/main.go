@@ -111,6 +111,20 @@ func main() {
 	r := gin.Default()
 
 	r.POST("/store/food/reserve", func(ctx *gin.Context) {
+		var reqBody FoodRequestBody
+
+		if err := ctx.BindJSON(&reqBody); err != nil {
+			ctx.JSON(400, err)
+			return
+		}
+
+		packet, err := ReserveFood(reqBody.Food_id)
+		if err != nil {
+			ctx.JSON(429, err)
+			return
+		}
+
+		ctx.JSON(200, gin.H{"packet reserved": packet})
 
 	})
 
@@ -122,9 +136,16 @@ func main() {
 			return
 		}
 
-		_, _ = BookFood(reqBody.Order_id, reqBody.Food_id)
-	})
-	r.Run(":8081")
+		packet, err := BookFood(reqBody.Order_id, reqBody.Food_id)
+		if err != nil {
+			ctx.JSON(429, err)
+			return
+		}
 
-	log.Println("Hello, World!")
+		ctx.JSON(200, gin.H{"packet booked": packet})
+
+	})
+
+	log.Println("Store Service started on port 8081")
+	r.Run(":8081")
 }
