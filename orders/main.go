@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"sync"
 
 	"github.com/Veeresh-R-G/2-phase-commit-protocol/orders/model"
-	"github.com/google/uuid"
 )
 
 func PlaceOrder(food_id int) (*model.Order, error) {
@@ -36,11 +36,13 @@ func PlaceOrder(food_id int) (*model.Order, error) {
 		log.Println(`Error in reserving agent : `, err.Error())
 		return nil, errors.New(`error in reserving agent`)
 	}
-
 	//------------------ Preparation Phase Completed ------------------
 
 	//----------------------- Commit Phase ------------------------
-	order_id := uuid.New().String()
+
+	//order id will come from the user
+	order_id := rand.Intn(100) + 1000
+
 	body, _ = json.Marshal(map[string]interface{}{
 		"order_id": order_id,
 		"food_id":  food_id,
@@ -64,11 +66,9 @@ func PlaceOrder(food_id int) (*model.Order, error) {
 		log.Println(`Error in booking agent : `, err.Error())
 		return nil, errors.New(`error in booking agent`)
 	}
-
 	//----------------------- Commit Phase Completed ------------------------
 
 	return &model.Order{OrderId: order_id}, nil
-
 }
 
 func main() {
@@ -76,22 +76,20 @@ func main() {
 	foodId := 1
 
 	var wg sync.WaitGroup
-	wg.Add(10)
+	wg.Add(2)
 
-	for i := 0; i < 5; i++ {
-		go func() {
+	for i := 0; i < 2; i++ {
+		func() {
 			order, err := PlaceOrder(foodId)
 			wg.Done()
 			if err != nil {
 				fmt.Println(`Order not Placed : `, err.Error())
 			} else {
-				log.Println(`Order Placed : `, order)
+				log.Println(`Order Placed : `, order.OrderId)
 			}
-
-			log.Println(`Order Place : `, order.OrderId)
-
 		}()
 	}
 
 	wg.Wait()
+
 }

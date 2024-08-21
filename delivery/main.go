@@ -24,7 +24,7 @@ func ReserveAgent() (*model.Agent, error) {
 	txn, _ := db.Begin()
 
 	row := txn.QueryRow(`SELECT id, is_reserved, order_id from agents
-	WHERE is_reserved is false and order_id is -1
+	WHERE is_reserved is false and order_id = -1
 	LIMIT 1
 	FOR UPDATE`)
 
@@ -33,25 +33,32 @@ func ReserveAgent() (*model.Agent, error) {
 		return nil, row.Err()
 	}
 
-	var agent model.Agent
-	err = row.Scan(&agent.Id, &agent.Is_reserved, &agent.Order_id)
+	var delivery_agent model.Agent
+	err = row.Scan(&delivery_agent.Id, &delivery_agent.Is_reserved, &delivery_agent.Order_id)
 
 	if err != nil {
 		txn.Rollback()
-		return nil, errors.New("no agents available")
+		log.Println(`Error in scanning agent : `, err.Error())
+		return nil, errors.New("error Scanning agent")
 	}
 
 	_, err = txn.Exec(`UPDATE agents 
 	SET
 	is_reserved = true
-	WHERE id = ?`, agent.Id)
+	WHERE id = ?`, delivery_agent.Id)
 
 	if err != nil {
 		txn.Rollback()
 		return nil, errors.New("error reserving agent")
 	}
 
-	return &agent, nil
+	err = txn.Commit()
+	if err != nil {
+		log.Println(`Error in committing transaction : `, err.Error())
+		return nil, errors.New("error committing transaction")
+	}
+
+	return &delivery_agent, nil
 }
 
 func BookAgent(order_id int) (*model.Agent, error) {
@@ -64,7 +71,7 @@ func BookAgent(order_id int) (*model.Agent, error) {
 	txn, _ := db.Begin()
 
 	row := txn.QueryRow(`SELECT id, is_reserved, order_id FROM agents
-	WHERE is_reserved is true and order_id is -1
+	WHERE is_reserved is true and order_id = -1
 	LIMIT 1
 	FOR UPDATE`)
 
@@ -73,8 +80,8 @@ func BookAgent(order_id int) (*model.Agent, error) {
 		return nil, errors.New("no agents is free, all are busy delivering the package")
 	}
 
-	var agent model.Agent
-	err = row.Scan(&agent.Id, &agent.Is_reserved, &agent.Order_id)
+	var delivery_agent model.Agent
+	err = row.Scan(&delivery_agent.Id, &delivery_agent.Is_reserved, &delivery_agent.Order_id)
 	if err != nil {
 		txn.Rollback()
 		return nil, errors.New("error scanning agent")
@@ -85,14 +92,20 @@ func BookAgent(order_id int) (*model.Agent, error) {
 	SET 
 	is_reserved = false,
 	order_id = ?
-	WHERE id = ?`, order_id, agent.Id)
+	WHERE id = ?`, order_id, delivery_agent.Id)
 
 	if err != nil {
 		txn.Rollback()
 		return nil, errors.New("error updating agent")
 	}
 
-	return &agent, nil
+	err = txn.Commit()
+	if err != nil {
+		log.Println(`Error in committing transaction : `, err.Error())
+		return nil, errors.New("error committing transaction")
+	}
+
+	return &delivery_agent, nil
 }
 
 func main() {
@@ -103,10 +116,11 @@ func main() {
 
 		agent, err := ReserveAgent()
 		if err != nil {
+			log.Println(`Error in reserving agent : `, err.Error())
 			c.JSON(429, err)
 			return
 		}
-
+		log.Println(`Agent reserved with agent_id : `, agent.Id)
 		c.JSON(200, gin.H{"agent_id": agent.Id})
 	})
 
@@ -122,6 +136,7 @@ func main() {
 		agent, err := BookAgent(reqBody.Order_id)
 
 		if err != nil {
+			log.Println(`Error in booking agent : `, err.Error())
 			ctx.JSON(429, err)
 			return
 		}

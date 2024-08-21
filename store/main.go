@@ -11,10 +11,8 @@ import (
 )
 
 type FoodRequestBody struct {
-	Id          int  `json:"id"`
-	Food_id     int  `json:"food_id"`
-	Is_reserved bool `json:"is_reserved"`
-	Order_id    int  `json:"order_id"`
+	Food_id  int `json:"food_id"`
+	Order_id int `json:"order_id"`
 }
 
 func ReserveFood(food_id int) (*model.Packet, error) {
@@ -29,7 +27,7 @@ func ReserveFood(food_id int) (*model.Packet, error) {
 	txn, _ := db.Begin()
 
 	//Getting the first food packet that is available
-	row := txn.QueryRow(`SELECT * id, food_id, is_reserved, order_id 
+	row := txn.QueryRow(`SELECT id, food_id, is_reserved, order_id 
 	FROM packet
 	WHERE
 		is_reserved is false and food_id = ? and order_id = -1
@@ -38,7 +36,7 @@ func ReserveFood(food_id int) (*model.Packet, error) {
 	`, food_id)
 
 	if row.Err() != nil {
-		return nil, errors.New("error in getting row")
+		return nil, errors.New("error in getting row / food packet not available")
 	}
 
 	err = row.Scan(&food_packet.Id, &food_packet.Food_id, &food_packet.Is_reserved, &food_packet.Order_id)
@@ -76,7 +74,7 @@ func BookFood(order_id, food_id int) (*model.Packet, error) {
 
 	var packet model.Packet
 	row := txn.QueryRow(`
-	SELECT * from packet
+	SELECT id, food_id, is_reserved, order_id from packet
 	WHERE is_reserved is true and order_id = -1 and food_id = ?
 	LIMIT 1
 	FOR UPDATE`, food_id)
@@ -103,6 +101,12 @@ func BookFood(order_id, food_id int) (*model.Packet, error) {
 		return nil, errors.New("error in updating packet")
 	}
 
+	err = txn.Commit()
+	if err != nil {
+		log.Println("Error in committing transaction : ", err)
+		return nil, errors.New("error in committing transaction")
+	}
+
 	return &packet, nil
 }
 
@@ -120,6 +124,7 @@ func main() {
 
 		packet, err := ReserveFood(reqBody.Food_id)
 		if err != nil {
+			log.Println("Error in reserving food : ", err)
 			ctx.JSON(429, err)
 			return
 		}
