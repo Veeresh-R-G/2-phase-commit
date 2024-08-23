@@ -26,14 +26,14 @@ func PlaceOrder(food_id int) (*model.Order, error) {
 	//reserve food
 	reserve_food_resp, err := http.Post("http://localhost:8081/store/food/reserve", "application/json", reqBody)
 	if err != nil || reserve_food_resp.StatusCode != 200 {
-		log.Println(`Error in reserving food : `, err.Error())
+		log.Println(`Error in reserving food, Status : `, reserve_food_resp.StatusCode)
 		return nil, errors.New(`error in reserving food`)
 	}
 
 	//reserve agent
 	reserve_agent_resp, err := http.Post("http://localhost:8082/delivery/agent/reserve", "application/json", nil)
 	if err != nil || reserve_agent_resp.StatusCode != 200 {
-		log.Println(`Error in reserving agent : `, err.Error())
+		log.Println(`Error in reserving agent, Status : `, reserve_agent_resp.StatusCode)
 		return nil, errors.New(`error in reserving agent`)
 	}
 	//------------------ Preparation Phase Completed ------------------
@@ -52,7 +52,7 @@ func PlaceOrder(food_id int) (*model.Order, error) {
 	//assign food to order
 	book_food_resp, err := http.Post("http://localhost:8081/store/food/book", "application/json", reqBody)
 	if err != nil || book_food_resp.StatusCode != 200 {
-		log.Println(`Error in booking food : `, err.Error())
+		log.Println(`Error in booking food, Status : `, book_food_resp.StatusCode)
 		return nil, errors.New(`error in booking food`)
 	}
 
@@ -63,7 +63,7 @@ func PlaceOrder(food_id int) (*model.Order, error) {
 	reqBody = bytes.NewBuffer(body)
 	book_agent_resp, err := http.Post("http://localhost:8082/delivery/agent/book", "application/json", reqBody)
 	if err != nil || book_agent_resp.StatusCode != 200 {
-		log.Println(`Error in booking agent : `, err.Error())
+		log.Println(`Error in booking agent, Status : `, book_agent_resp.StatusCode)
 		return nil, errors.New(`error in booking agent`)
 	}
 	//----------------------- Commit Phase Completed ------------------------
@@ -74,16 +74,17 @@ func PlaceOrder(food_id int) (*model.Order, error) {
 func main() {
 
 	foodId := 1
+	var numOfTransactions = 5
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(numOfTransactions)
 
-	for i := 0; i < 2; i++ {
-		func() {
+	for i := 0; i < numOfTransactions; i++ {
+		go func() {
 			order, err := PlaceOrder(foodId)
 			wg.Done()
 			if err != nil {
-				fmt.Println(`Order not Placed : `, err.Error())
+				fmt.Println(`Order not Placed : `)
 			} else {
 				log.Println(`Order Placed : `, order.OrderId)
 			}
@@ -91,5 +92,4 @@ func main() {
 	}
 
 	wg.Wait()
-
 }
