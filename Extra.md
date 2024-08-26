@@ -1,6 +1,6 @@
 - Populated Data in the database
 
-````
+```
 stmtsIns, err := db.Prepare("INSERT INTO food VALUES( ?, ?)")
 	if err != nil {
 		log.Fatalln("Can't Prepare Insert Statements", err)
@@ -37,4 +37,4 @@ stmtsIns, err := db.Prepare("INSERT INTO food VALUES( ?, ?)")
 		log.Println("--------------------------")
 	}
 ```w
-````
+
